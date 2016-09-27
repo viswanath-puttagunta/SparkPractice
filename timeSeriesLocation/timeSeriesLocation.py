@@ -7,17 +7,24 @@ sc = SparkContext( 'local', 'pyspark')
 sqlContext = SQLContext(sc)
 
 LabeledDocument = Row('uid',
-                     'start_time',
-                     'locTime')
+                     'startTime',
+                     'locTimeL')
 DATETIME_FMT="%Y-%m-%d@%H:%M:%S"
 def parseDocument(line):
     values = [str(x) for x in line.split(',')]
     uid = values[0]
-    st = datetime.strptime(values[1],DATETIME_FMT)
-    tlist = values[2][1:-1].split(':')
+    startTime = int(datetime.strptime(values[1],DATETIME_FMT).strftime("%s"))
+    durList = map(int, values[2][1:-1].split(':'))
     loclist = values[3][1:-1].split(':')
-    locTimeList = zip(loclist,tlist)
-    return LabeledDocument(uid,st,locTimeList)
+    
+    locTimeL = []
+    dur = 0;
+    i = 0
+    for d in durList:
+        locTimeL.append((loclist[i], startTime+dur, d))
+        dur += d
+        i += 1
+    return LabeledDocument(uid,startTime,locTimeL)
 
 fileurl = fileurl = 'file:///'+os.path.abspath('.')+'/timeSeriesLocation.csv'
 
@@ -26,6 +33,7 @@ df = sc.textFile(fileurl) \
     .map(parseDocument) \
     .toDF()
 
-print df.show(2)
+for r in df.collect():
+    print r.uid + ' ' + str(r.locTimeL)
 
 sc.stop()
