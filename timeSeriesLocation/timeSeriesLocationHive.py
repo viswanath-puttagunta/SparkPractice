@@ -1,34 +1,33 @@
 
 # coding: utf-8
 
-# In[8]:
+# In[28]:
 
 from pyspark import SparkContext
 from pyspark.sql import Row, SQLContext
-from pyspark.sql import HiveContext
+from pyspark.sql import HiveContext, DataFrameWriter
 from datetime import datetime
-from pyspark.sql.functions import udf
 import os
 
 
-# In[9]:
+# In[29]:
 
 #Must do this if running py files independently
 sc = SparkContext( 'local', 'pyspark')
-sqlContext = HiveContext(sc)
+hiveContext = HiveContext(sc)
 
 
-# In[10]:
+# In[30]:
 
-tdf = sqlContext.sql("SELECT CONCAT(uid, ',', start_time,',',dur_loc_seq) as ev from rawlocationtime")
-
-
-# In[11]:
-
-tdf.collect()
+tdf = hiveContext.sql("SELECT CONCAT(uid, ',', start_time,',',dur_loc_seq) as ev from rawlocationtime")
 
 
-# In[12]:
+# In[32]:
+
+#tdf.collect()
+
+
+# In[33]:
 
 DATETIME_FMT="%Y-%m-%d@%H:%M:%S"
 def toLocDurTuples(line):
@@ -61,36 +60,51 @@ def tfin(x):
     while(1):
         if (i >= maxlen):
             if (i == maxlen):
-                data2.append(data[i])
+                data2.append((x[0], data[i][0], data[i][1], data[i][2]))
             break;
         if data[i][0] != data[i+1][0]:
             #locations are different
-            data2.append(data[i])
+            data2.append((x[0], data[i][0], data[i][1], data[i][2]))
             i += 1
         else:
             #locations are same!
             if (data[i][1] + data[i][2] == data[i+1][1]):
                 #back to back on same location
-                data2.append((data[i][0],                               data[i][1],                               data[i][2] + data[i+1][2]))
+                data2.append((x[0], data[i][0],                               data[i][1],                               data[i][2] + data[i+1][2]))
                 #skip the next entry
                 i += 2
             else:
                 i += 1
-    return(x[0],sorted(data2, key=lambda x: x[2], reverse=True))
+    return(sorted(data2, key=lambda x: x[3], reverse=True))
 
 
-# In[13]:
+# In[34]:
 
-rdd2 = tdf.select("ev").rdd.map(lambda x: toLocDurTuples(x.ev))                        .reduceByKey(lambda a,b: a+b)                        .map(lambda x: tfin(x))
-
-
-# In[14]:
-
-for x in rdd2.take(3):
-    print x
+rdd2 = tdf.select("ev").rdd.map(lambda x: toLocDurTuples(x.ev))                        .reduceByKey(lambda a,b: a+b)                        .flatMap(lambda x: tfin(x))
 
 
-# In[15]:
+# In[36]:
+
+#rdd2.take(10)
+
+
+# In[37]:
+
+tdf2 = hiveContext.createDataFrame(rdd2, ['uid', 'loc','ts','dur'])
+
+
+# In[38]:
+
+#tdf2.collect()
+
+
+# In[39]:
+
+df_writer = DataFrameWriter(tdf2)
+df_writer.insertInto('vlocations',overwrite=True)
+
+
+# In[40]:
 
 sc.stop()
 
@@ -111,4 +125,9 @@ tfin((u'101',
    (202, 1464851152, 40),
    (201, 1464851192, 50)]))
 '''
+
+
+# In[ ]:
+
+
 
