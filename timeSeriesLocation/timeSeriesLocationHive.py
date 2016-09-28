@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[73]:
 
 from pyspark import SparkContext
 from pyspark.sql import Row, SQLContext
@@ -10,41 +10,41 @@ from datetime import datetime
 import os
 
 
-# In[2]:
+# In[74]:
 
 #Put all variables here
-iHiveTable = "rawlocationtime"
-oHiveTable = "vlocations"
+iHiveTable = "vrawsession"
+oHiveTable = "vconsolsession"
 
 iHiveQuery = "SELECT CONCAT(uid, ','," + " start_time, ',' ,dur_loc_seq, ',', " + " data_dt) as ev from " +  iHiveTable
 
 
-# In[35]:
+# In[86]:
 
 #iHiveQuery
 
 
-# In[6]:
+# In[76]:
 
 #Must do this if running py files independently
 sc = SparkContext( 'local', 'pyspark')
 hiveContext = HiveContext(sc)
 
 
-# In[7]:
+# In[77]:
 
 tdf = hiveContext.sql(iHiveQuery)
 
 
-# In[36]:
+# In[87]:
 
 #tdf.collect()
 
 
-# In[23]:
+# In[88]:
 
-DATETIME_FMT="%Y-%m-%d@%H:%M:%S"
 def toLocDurTuples(line):
+    DATETIME_FMT="%Y-%m-%d@%H:%M:%S"
     uidI = 0
     dateI = 3
     startTimeI = 1
@@ -107,36 +107,36 @@ def tfin(x):
                 i += 1
     data2 = sorted(data2, key=lambda x: x[2], reverse=True)
     data3 = str(data2).replace(', ',':').replace('):',')|')
-    return((uid, data3, date))
+    return((uid, data3, int(date)))
 
 
-# In[26]:
+# In[80]:
 
 rdd2 = tdf.select("ev").rdd.map(lambda x: toLocDurTuples(x.ev))                        .reduceByKey(lambda a,b: a+b)                        .map(lambda x: tfin(x))
 
 
-# In[34]:
+# In[89]:
 
 #rdd2.take(10)
 
 
-# In[28]:
+# In[82]:
 
 tdf2 = hiveContext.createDataFrame(rdd2, ['uid','loc_ts_dur', 'data_dt'])
 
 
-# In[33]:
+# In[90]:
 
 #tdf2.collect()
 
 
-# In[30]:
+# In[84]:
 
 df_writer = DataFrameWriter(tdf2)
 df_writer.insertInto(oHiveTable,overwrite=True)
 
 
-# In[5]:
+# In[85]:
 
 sc.stop()
 
