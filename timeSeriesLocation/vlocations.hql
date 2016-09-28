@@ -1,6 +1,5 @@
 CREATE EXTERNAL TABLE IF NOT EXISTS vlocations (
 uid string,
-loc string,
-ts int,
-dur int
+loc_ts_dur string,
+data_dt string
 )ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' LOCATION "hdfs:///user//vagrant//junk//vlocations//";
