@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[205]:
+# In[1]:
 
 from pyspark import SparkContext
 from pyspark.sql import HiveContext, DataFrameWriter
@@ -10,7 +10,7 @@ import time
 import re
 
 
-# In[206]:
+# In[6]:
 
 #Put all variables here
 iHiveTable = "vconsolsession"
@@ -22,28 +22,28 @@ endDate = 20160602
 iHiveQuery = "SELECT CONCAT(uid, ','," + " loc_ts_dur) as ev " + "from " + iHiveTable + " where data_dt>=" + str(startDate) + " and data_dt <=" + str(endDate)
 
 
-# In[218]:
+# In[7]:
 
 #iHiveQuery
 
 
-# In[208]:
+# In[8]:
 
 sc = SparkContext( 'local', 'pyspark')
 hiveContext = HiveContext(sc)
 
 
-# In[209]:
+# In[9]:
 
 tdf = hiveContext.sql(iHiveQuery)
 
 
-# In[219]:
+# In[10]:
 
 #tdf.collect()
 
 
-# In[211]:
+# In[11]:
 
 def predictPeriodDuration(x):
     uidI = 0
@@ -72,39 +72,39 @@ def predictPeriodDuration(x):
     return sortedPrdL
 
 
-# In[213]:
+# In[12]:
 
 rdd2 = tdf.select("ev").rdd.map(lambda x: tuple(x.ev.split(',')))                             .reduceByKey(lambda a,b: a+b)                             .flatMap(predictPeriodDuration)
 
 
-# In[220]:
+# In[13]:
 
 #rdd2.take(10)
 
 
-# In[215]:
+# In[14]:
 
 tdf2 = hiveContext.createDataFrame(rdd2, ['uid','loc','prd','dur', 'ts'])
 
 
-# In[221]:
+# In[15]:
 
 #tdf2.collect()
 
 
-# In[217]:
+# In[16]:
 
 df_writer = DataFrameWriter(tdf2)
 df_writer.insertInto(oHiveTable,overwrite=True)
 
 
-# In[204]:
+# In[17]:
 
 sc.stop()
 
 
-# In[212]:
+# In[19]:
 
-predictPeriodDuration((u'101',
-  u'[(202:1464764702:90)|(201:1464764642:60)|(201:1464764792:50)|(203:1464782682:50)|(202:1464782642:40)]'))
+#predictPeriodDuration((u'101',
+#   u'[(202:1464764702:90)|(201:1464764642:60)|(201:1464764792:50)|(203:1464782682:50)|(202:1464782642:40)]'))
 

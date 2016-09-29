@@ -1,16 +1,18 @@
 
 # coding: utf-8
 
-# In[73]:
+# In[3]:
 
 from pyspark import SparkContext
 from pyspark.sql import Row, SQLContext
 from pyspark.sql import HiveContext, DataFrameWriter
 from datetime import datetime
+from dateutil import tz
+import time
 import os
 
 
-# In[74]:
+# In[17]:
 
 #Put all variables here
 iHiveTable = "vrawsession"
@@ -19,29 +21,29 @@ oHiveTable = "vconsolsession"
 iHiveQuery = "SELECT CONCAT(uid, ','," + " start_time, ',' ,dur_loc_seq, ',', " + " data_dt) as ev from " +  iHiveTable
 
 
-# In[86]:
+# In[5]:
 
 #iHiveQuery
 
 
-# In[76]:
+# In[8]:
 
 #Must do this if running py files independently
 sc = SparkContext( 'local', 'pyspark')
 hiveContext = HiveContext(sc)
 
 
-# In[77]:
+# In[18]:
 
 tdf = hiveContext.sql(iHiveQuery)
 
 
-# In[87]:
+# In[19]:
 
 #tdf.collect()
 
 
-# In[88]:
+# In[20]:
 
 def toLocDurTuples(line):
     DATETIME_FMT="%Y-%m-%d@%H:%M:%S"
@@ -54,7 +56,12 @@ def toLocDurTuples(line):
     
     #uid_date becomes the key later
     uid_date = values[uidI] + '_' + values[dateI]
-    startTime = int(datetime.strptime(values[startTimeI],DATETIME_FMT).strftime("%s"))
+    
+    #Convert time string to epoch time stamp
+    dt_with_tz = datetime(*time.strptime(values[startTimeI], DATETIME_FMT)[:6],
+                         tzinfo=tz.tzutc())
+    delta = (dt_with_tz - datetime(1970,1,1,tzinfo=tz.tzutc()))
+    startTime = delta.days*86400 + delta.seconds
     
     durLocStrL = values[durLocI].split('][')
     durList = map(int, durLocStrL[0][1:].split(':'))
@@ -110,33 +117,33 @@ def tfin(x):
     return((uid, data3, int(date)))
 
 
-# In[80]:
+# In[21]:
 
 rdd2 = tdf.select("ev").rdd.map(lambda x: toLocDurTuples(x.ev))                        .reduceByKey(lambda a,b: a+b)                        .map(lambda x: tfin(x))
 
 
-# In[89]:
+# In[27]:
 
 #rdd2.take(10)
 
 
-# In[82]:
+# In[23]:
 
 tdf2 = hiveContext.createDataFrame(rdd2, ['uid','loc_ts_dur', 'data_dt'])
 
 
-# In[90]:
+# In[24]:
 
 #tdf2.collect()
 
 
-# In[84]:
+# In[25]:
 
 df_writer = DataFrameWriter(tdf2)
 df_writer.insertInto(oHiveTable,overwrite=True)
 
 
-# In[85]:
+# In[26]:
 
 sc.stop()
 
