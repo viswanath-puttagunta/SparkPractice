@@ -1,0 +1,240 @@
+
+import scala.util.parsing.json.JSON
+
+import org.json4s._
+import org.json4s.ackson.JsonMethods._
+import org.json4s.jackson.Serialization
+
+import java.util.Date
+import java.util.TimeZone
+import java.text.SimpleDateFormat
+
+import java.io._
+
+import scala.util.control.Breaks._
+
+//Getting HiveContext and simple hive sql
+val hiveContext = new org.apache.spark.sql.hive.HiveContext(sc)
+
+val df1 = hiveContext.sql("select * from db_name.table_name")
+df1.registerTempTable("df_table")
+
+val df2 = hiveContext.sql("select * from df_table")
+
+//DF to RDD/Class and back to DF
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.Row
+
+val cols = List("first", "last")
+val recordsDf = df.select("first", "last")
+or
+val recordsDf = df.select(col("first"), col("last"))
+or
+val recordsDf = df.select(cols.map(col):_*))
+
+val colStruct = cols.map(x => StructField(x, StringType))   // List of StructField objects
+
+
+// Converting Dataframe to RDD and back
+val gschema = StructType(colStruct)  // not using this below, but look this up.. can automate DF <->RDD using this
+
+case class Names (
+  first: String,
+  last: String
+)
+
+def toName(row;: org.apache.spark.sql.Row) = {
+  Names(row(0).toString, row(1).toString)
+}
+
+val recsRdd = recordsDf.rdd.map(x => toName(x))   //recsRdd: is now RDD[Names]
+// End of DF <-> RDD
+
+//Converting RDD to Dataframe
+val rdd = sc.parallelize(List(("aa",1), ("bb",2)))
+val rdd1 = rdd.map(x => Row.fromSeq(Seq(x._1, x._2)))  //converting tuples into Row() 
+
+val sType = StructType(List(StructField("col1", StringType), StructField("col2", LongType)))
+val df1 = hiveContext.createDataFrame(rdd1, sType) 
+
+import java.text.SimpleDateFormat
+val cfmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:SS")
+val dtObj = cfmt.parse("2012-02-28 21:30:12")  // gives DateTime Object
+val ticksDtObj = dtObj.getTime()    // gives epoch time
+
+//Casting String columns into TimeStamp
+import org.apache.spark.sql.functions.unix_timestamp
+import java.sql.TimeStamp
+val df = Seq((1L, "2016-15-12"), (2L, "2017-07-12")).toDF("id","dts")
+
+val df2 = df.withColumn("actual_ts",unix_timestamp($"dts", "yyyy-MM-dd").cast("timestamp"))
+
+
+
+
+// Regular expression mapping
+
+val reg1 = raw".*com".r
+
+val test = "buenovista.com"
+val pkg = test match {
+  case reg1() => true
+  case _ => false    
+} // "pkg" should have true if reg1() regular expression matched. Else it will have false.
+
+
+// Updating Map[String,String]
+def addFields(rec: Map[String,String]) = {
+  var upMap = rec
+  upMap(("newFldKey","newFldValue"))    
+  upMap
+}
+
+
+//ListBuffer: This is mutable
+import scala.collection.mutable.ListBuffer
+val lb = ListBuffer[String]()
+
+lb += "hello"
+lb += "new"
+
+println(lb)
+
+
+//Jason parsing using native JSON parser
+def parseJson(fileName: String): Option[Any] = {
+  val json_string = scala.io.Source.fromFile(fileName).getLines.mkString     // read from file into one big string
+  JSON.parseFull(json_string)
+}
+val dd = (parseJson(fileName)).get.asInstanceOf[Map[String,Any]]
+
+//Json parsing using Jackson Parser
+def extract_json_data(ss: String) = {
+  val dd = collection.mutable.Map[String,String]()
+  val mm: Map[String,Any] = null
+  val initJVal = parse(""""{origStr": ""}"""
+  val jsonObj = initJVal
+
+  try {
+    jsonObj = parse(ss)
+    mm = jsonObj.values.asInstanceOf[Map[String,Any]]
+    parse_map(mm, dd, "")
+  } catch {
+    case e: Exception => {}     
+  }
+  dd("someKey") = dd.getOrElse("k1","") + dd.getOrElse("k2")
+}
+
+def parse_map(mm: Map[String,Any], dd: collection.mutable.Map[String,String], pfx: String):Boolean = {
+  for ((k,v) <- mm) {
+    val s1 = v.toString
+    if (s1.slice(0,3) == "Map") {
+      var tm: Map[String,Any] = null
+      try {
+        tm = v.asInstanceOf[Map[String,Any]]
+        parse_map(tm, dd, pfx + k + "_")
+      } catch {
+        case e: Exception => {}     
+      }
+    } else {
+        dd(pfx + k) = s1
+    }
+  }
+  true
+}
+
+
+//Scala beautiful nested execution with exception handling
+
+val verified = for {
+    tryFirst <- Try {
+        //Do something here that may raise exception
+        true    // or false if something fails (but not exception)
+    }
+    trySecond <- Try {
+      //This gets executed only if tryFirst succeeded
+      // Do something else here that may raise exception
+      true
+    }
+    tryThrid <- Try {
+       // This gets executed only if tryFirst and trySecond succeed
+       // Do something else here that may raise exception     
+       true
+    }
+} yield { tryFirst && trySecond && tryThird }
+
+verified match {
+  case Success(v) => {
+    if(v) { // all returned "true" and no exception
+      println("All is well")
+    } else { // one of them returned "false", but no exception
+      prinltn("No exception, but one of actions returned false")     
+    }
+  }
+  case Failure(e) => {
+     println("There was an exception" + e.getMessage) 
+  }
+}
+
+//Using udf on Dataframe
+val add10 = udf(col1: String, col2: String) => {
+  col1 + _ + col2 
+})
+
+//Below returns a new dataframe with a newly created column
+def some_function(hiveContext: org.apache.spark.sql.hive.HiveContext, df1: DataFrame) = {
+  import hiveContext.implicits._     // u need this if u want to access columns as $"col1"
+  val df2 = df1.withColumn(new_col_name, add10($"col1", $"col2"))
+  val df2 = df1.withColumn(new_col_name, add10(df1("col1"), df2("col2")))   // same as above
+  df2
+}
+
+some_function(hiveContext, df1)
+
+//Elegant way of serializing and sending broadcast variables.. Make the entire class serializable
+class dummyClass(nSet: Set[String]) extends Serializable {
+  val mapSet = nSet    
+
+  val isInSet = udf((col1: String) => {
+    if (mapSet.contains(col1))
+       true
+    else
+        false 
+  })
+}
+
+val dummyObject = new dummyClass(Set("bb","aa"))
+
+val df2 = df1.withColumn("has_somthing", dummyObject.isInSet($"col1"))
+
+//###### Spark MLIB #####
+import org.apache.spark.mllib.feature.StandardScaler
+import org.apache.spark.mllib.linalg.Vectors
+
+def ArrayToDenseVector(token: String, aa: Array[Double]) = {
+  (token, Vectors.dense(aa))
+}
+
+val (keys, vectors) = (recs.keys, recs.values)
+//keys: will have tokens.   vectors: Will have the matrix
+
+val scaler = new StandardScaler(withMean = true, withStd=true).fit(vecstors)
+val scaledFeatures = scaler.transform(vectors)
+
+import org.apache.spark.mllib.clustering.KMeans
+val kmeans = new Kmeans().setSeet(new scala.util.Random(System.currentTimeMillis).nextLong).setk(7).setMaxIterations(15)
+val model = kmeans.run(scaledFeatures)
+
+val userClass = scaledFeatures.map(x => model.predict(x))
+
+//Save /Restore in orc format
+val df = hiveContext.read.format("orc").load("hdfs_path")
+df.write.format("orc").save("hdfs_path")
+
+//Dataframe window operations
+val df2 = df.withColumn("firstSorted", rank().over(Window.partitionBy("First").orderBy("Last")))
+                 // first partition by "First".   order each sub-frame by "Last".   new column "firstSorted" = rank()
+val df3 = df2.withColumn("firstSorted", max($"firstSorted").over(Window.partitionBy("First")))
+                // new column "firstSorted" will have the max rank.   
+
