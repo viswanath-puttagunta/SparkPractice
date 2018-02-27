@@ -66,7 +66,7 @@ val ticksDtObj = dtObj.getTime()    // gives epoch time
 //Casting String columns into TimeStamp
 import org.apache.spark.sql.functions.unix_timestamp
 import java.sql.TimeStamp
-val df = Seq((1L, "2016-15-12"), (2L, "2017-07-12")).toDF("id","dts")
+val df = Seq((1L, "2016-05-12"), (2L, "2017-07-12")).toDF("id","dts")
 
 val df2 = df.withColumn("actual_ts",unix_timestamp($"dts", "yyyy-MM-dd").cast("timestamp"))
 
