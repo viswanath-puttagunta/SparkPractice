@@ -238,3 +238,45 @@ val df2 = df.withColumn("firstSorted", rank().over(Window.partitionBy("First").o
 val df3 = df2.withColumn("firstSorted", max($"firstSorted").over(Window.partitionBy("First")))
                 // new column "firstSorted" will have the max rank.   
 
+//Create Dummy Variables (similar to pandas.create_dummies().droplast()
+class createDummy(offset: Int) extends Serializable {
+  val cOffset = offset
+  val getNewVal = udf((ss: org.apache.spark.ml.linalg.SparseVector) => {
+    var retVal = 0
+    if ((ss.argmax == cOffset) && (ss.numActivities > 0))  // Eg: (0,1,0) or (0,0,0)
+      retVal = 1
+    else
+      retVal = 0
+    retVal
+  })
+}
+
+def createDummies(df: org.apache.spark.sql.DataFrame, cname: String, pref: String) = {
+  val indexer = new StringIndexer().setInputCol(cname).setOutputCol(cname+"Index").fit(df)
+  val indexed = indexer.transform(df)
+  val encoder = new OneHotEncoder().setInputCol(cname+"Index").setOutputCol(cname+"Vec")
+  val encoded = encoder.transform(indexed)
+
+  val encodings = encoded.groupBy(encoded(cname)).agg(max(cname+"Index")).take
+  val dd = collection.mutablemMap[Int,String]()
+  var maxVal = 0
+  var maxKey = ""
+  for (k <- encodings) {
+    val kkey = k(0).toString
+    val kval = k(1).toString.toDouble.toInt
+    if (kval > maxVal) {
+      maxVal = kval
+      maxKey = kkey
+    }
+    dd(kval) = kkey
+  }
+  // Now create (maxVal - 1) new columns
+  var encoded1 = encoded
+  for (i <- 0 to (maxVal - 1)) {
+    val dummyObject = new createDummy(i)
+    val newColName = pref + dd(i)
+    encoded1 = encoded1.withColumn(newColName, dummyObject.getNewVal(encoded1(cname+"Vec")))
+  }
+  encoded1.drop(cname + "Index).drop(cname+"Vec")
+}
+
