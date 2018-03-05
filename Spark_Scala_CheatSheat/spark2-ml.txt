@@ -1,0 +1,93 @@
+import scala.collection.mutable.ListBuffer
+
+val featureCols = ListBuffer[String]()
+featureCols += "feature1"   // Add more features
+//Note: "label" must be name of column with class label
+
+//Simple Data Manipulation: Change String to Double
+df = df.withColumn("tmp",df("feature1").cast(DoubleType)).drop("feature1").withColumnRenamed("tmp","feature1")
+
+//Check for nulls
+df.filter(df("feature1").isNull)
+df.filter(df("feature1").isNotNull)
+
+//Impute nulls with Mean
+import org.apache.spark.ml.feature.Imputer
+val featuresWithNulls = Array("feature1","feature2")
+val featuresImputed = Array("feature1_imputed","feature2_imputed")
+val imputer = new Imputer.setInputCols(featuresWithNull).setOutputCols(featuresImputed).setStrategy("mean")
+
+//Vectorize
+import org.apache.spark.ml.feature.VectorAssembler
+val = new VectorAssembler().setInputCols(featureCols.toArray).setOutputCol("features") 
+df = assembler.transform(df)  // Should see new column "features" which has dense vectors
+
+//Do train,test split
+val Array(training, test) = df.randomSplit(Array(0.7,0.3),seed=11L)
+
+//Logistic regression
+import org.apache.spark.ml.classification.LogisticRegression
+val lr = new LogisticRegression().setMaxIter(10).setRegParam(0.3).setElasticNetParam(0.8)
+val lrModel = lr.fit(training)
+val prediction = lrModel.transform(test)    // Run the model on test
+
+
+//Model Evaluation
+class PredictionAndLabelClass(thresh: Double) extends Serializable {
+  val threshold = thresh
+  def toPredictionAndLabel(ss: Row) = {
+    val values = ss.toSeq
+    var outClass = 0.0
+    if (values(0).toString.toDouble >= threshold)
+        outClass = 1.0
+    (outClass, values(1).toString.toDouble)
+  }
+}
+
+class ProbabilityAndLabelClass() extends Serializable {
+  def toProbabilityAndLabel(ss: Row) = {
+    val values = ss.toSeq
+    (values(0).toString.toDouble,values(1).toString.toDouble)
+  }
+}
+
+import org.apache.spark.ml.linalg.DenseVector
+val classOneProbability = udf((vv: DenseVector) => {
+  vv.toArray(1)
+}
+
+class ModelEvaluator(spark: SparkSession, tdf: DataFrame) {
+  import org.apache.spark.mllib.evaluation.MultclassMetrics    
+  val dft = tdf
+
+  def binMetrics(ss: Array[(Double,Double)], colName: String, doublePrecision: String) = {
+    val sType = StructType(List(
+      StructField("probability",DoubleType),
+      StructField(colName,DoubleType)
+    ))
+    val fp = "%." + doublePrecision + "f"
+    val xRdd = ss.parallelize(ss).map(k => Seq(fp.format(k._1).toDouble,fp.format(k._2).toDouble)).map(k => Row.fromSeq(k))
+    spark.createDataFrame(xRdd, sType).groupBy("probability").agg(max(col(colName))).sort("probability).toDF("probability",colName)  
+  }
+
+  val prediction2 = dft.withColumn("proba",classOneProbability(dft("probability"))
+
+  def getConfusionMatrix(threshold_in: Double) = {
+    val pl = new PredictionAndLabelC(threshold_in)
+    val metrics = new MulticlassMetrics(predictionAndLabels)     
+    println(metrics.confutionMatrix)
+  }
+  def getThresholdMetrics(floatPrecision: String) = {
+    val pl = new ProbabilityAndLabelClass()
+    val probabilityAndLabels = prediction2.select("proba","label").rdd.map(pl.toProbabilityAndLabel)     
+    val metrics = new BinaryClassificationMetrics(probabilityAndLabels)
+    binMetrics(metrics.precisionByThreshold.collect, "precision", floatPrecision).show(100)
+    binMetrics(metrics.recallByThreshold.collect, "recall",floatPrecision).show(100)
+  }
+}
+
+val em = new ModelEvaluator(spark, prediction)
+em.getThresholdMetrics("2")
+em.getConfusionMatrix(0.2)
+
+
