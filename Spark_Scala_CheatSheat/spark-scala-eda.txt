@@ -295,7 +295,21 @@ var dfout = dfin.groupBy("date").pivot("City").agg(sum($"amount")).sort("dataDt"
  date        |   Madrid    |  Paris
  2017-04-02  |   4500      |  3000
  2017-04-03  |   1000      |  2000
+*/
 
-   
+// Explode Dataframe: Used when need to generate multiple rows from single row
+/* Input Data Frame
+  inf         |    amount
+  ["aa","bb"] |    2
+  ["kk","dd"] |    5
 
+var dfout = dfin.withColumn("ninf", explode($"inf"))
+// Note: ["aa","bb"] this element is a List()
+
+   Output Data Frame
+  inf         |    ninf      |   amount
+  ["aa","bb"] |    "aa"      |   2
+  ["aa","bb"] |    "bb"      |   2 
+  ["kk","dd"] |    "kk"      |   5
+  ["kk","dd"] |    "dd"      |   5
 */
