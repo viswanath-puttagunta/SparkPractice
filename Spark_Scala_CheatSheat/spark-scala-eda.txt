@@ -280,3 +280,22 @@ def createDummies(df: org.apache.spark.sql.DataFrame, cname: String, pref: Strin
   encoded1.drop(cname + "Index).drop(cname+"Vec")
 }
 
+//Pivot transpose dataframe
+/*Input dataframe
+ date        |   City     |   amount
+ 2017-04-02  |   Madrid   |   2500
+ 2017-04-02  |   Madrid   |   2000
+ 2017-04-02  |   Paris    |   3000
+ 2017-04-03  |   Madrid   |   1000 
+ 2017-04-03  |   Paris    |   2000 
+
+var dfout = dfin.groupBy("date").pivot("City").agg(sum($"amount")).sort("dataDt")
+
+//Output Datafram
+ date        |   Madrid    |  Paris
+ 2017-04-02  |   4500      |  3000
+ 2017-04-03  |   1000      |  2000
+
+   
+
+*/
